@@ -21,7 +21,7 @@ from saseumn.util import (VALID_USERNAME, get_redirect_target, hash_file,
 
 blueprint = Blueprint("users", __name__, template_folder="templates")
 email_template = """
-Hello!
+Hello, $username!
 
 You recently created an account with SASE UMN using this email. To prove you're
 legit, please click on the following link (or copy-paste it into your browser
@@ -78,6 +78,7 @@ def register():
     if register_form.validate_on_submit():
         new_user = register_user(register_form.name.data,
                                  register_form.email.data,
+                                 register_form.username.data,
                                  register_form.password.data,
                                  register_form.user_type.data,
                                  admin=False)
@@ -103,6 +104,7 @@ def checkin(evtkey):
     if register_form.submit.data and register_form.validate_on_submit():
         new_user = register_user(register_form.name.data,
                                  register_form.email.data,
+                                 register_form.username.data,
                                  register_form.password.data,
                                  register_form.user_type.data,
                                  admin=False)
@@ -261,15 +263,13 @@ def approve(token):
     flash("Invalid token.", "danger")
     return redirect(url_for("users.login"))
 
-def register_user(name, email, password, user_type, admin=False, **kwargs):
+def register_user(name, email, username, password, user_type, admin=False, **kwargs):
     is_approved = user_type == "student"
     code = random_string()
     approval_code = random_string()
-    new_user = user_datastore.create_user(name=name, username=email, password=password, email=email,
-                                          user_type=user_type,
-                                          email_verification_token=code,
-                                          approved=is_approved,
-                                          approval_token=approval_code)
+    new_user = user_datastore.create_user(
+        name=name, username=email, password=password, email=email, user_type=user_type,
+        email_verification_token=code, approved=is_approved, approval_token=approval_code)
     if not is_approved:
         send_approval_request_email(email, user_type, url_for(
             "users.approve", token=approval_code, _external=True))
@@ -278,10 +278,11 @@ def register_user(name, email, password, user_type, admin=False, **kwargs):
     db.session.commit()
     return new_user
 
-def send_verification_email(email, link):
+def send_verification_email(username, email, link):
     subject = "[ACTION REQUIRED] Email Verification for SASE Account."
     body = string.Template(email_template).substitute(
-        link=link
+        link=link,
+        username=username,
     )
     send_email(email, subject, body)
 
@@ -332,6 +333,7 @@ class LoginForm(FlaskForm):
 
 class RegisterForm(FlaskForm):
     name = StringField("Name", validators=[InputRequired("Please enter a name.")])
+    username = StringField("Username", validators=[InputRequired("Please enter a username."), Length(3, 24, "Your username must be between 3 and 24 characters long.")])
     email = StringField("Email", validators=[InputRequired("Please enter an email."), Email("Please enter a valid email.")])
     password = PasswordField("Password", validators=[InputRequired("Please enter a password.")])
     confirm_password = PasswordField("Confirm Password", validators=[InputRequired("Please confirm your password."), EqualTo("password", "Please enter the same password.")])
