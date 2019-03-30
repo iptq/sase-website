@@ -274,7 +274,7 @@ def register_user(name, email, username, password, user_type, admin=False, **kwa
         send_approval_request_email(email, user_type, url_for(
             "users.approve", token=approval_code, _external=True))
     if not current_app.config.get("EMAIL_VERIFICATION_DISABLED", False):
-        send_verification_email(email, url_for("users.verify", token=code, _external=True))
+        send_verification_email(username, email, url_for("users.verify", token=code, _external=True))
     db.session.commit()
     return new_user
 
