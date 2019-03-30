@@ -288,8 +288,8 @@ def send_verification_email(username, email, link):
 
 def send_approval_request_email(user_email, user_type, link):
     subject = "[SASE Website] Approve registration of " + user_type
-    body = string.Template(approval_request_email_template)
-           .substitute(user_email=email, user_type=user_type, link=link)
+    body = string.Template(approval_request_email_template).substitute(
+        user_email=email, user_type=user_type, link=link)
     send_email("sasemail@umn.edu", subject, body)
 
 class ProfileEditForm(FlaskForm):
