@@ -33,6 +33,17 @@ Thanks!
 SASE UMN Webmaster
 """
 
+approval_request_email_template = """
+A user registered on the SASE UMN website and needs approval.
+
+Email: $email
+Role: $user_type
+
+Click here to approve this user:
+$link
+"""
+# TODO: link to reject user?
+
 
 @blueprint.route("/login", methods=["GET", "POST"])
 def login():
@@ -69,6 +80,7 @@ def register():
                                  register_form.email.data,
                                  register_form.username.data,
                                  register_form.password.data,
+                                 register_form.user_type.data,
                                  admin=False)
         flash("Check your email for an activation link.", "info")
         return redirect(url_for("users.login"))
@@ -94,6 +106,7 @@ def checkin(evtkey):
                                  register_form.email.data,
                                  register_form.username.data,
                                  register_form.password.data,
+                                 register_form.user_type.data,
                                  admin=False)
         event.attendees.append(new_user)
         db.session.add(event)
@@ -161,6 +174,7 @@ def resumes(id=None):
         return send_file(path, attachment_filename=resume.name)
     if request.method == "POST":
         db.session.query(Resume).filter(Resume.id==request.form.get("delete")).delete()
+        db.session.commit()
     return render_template("users/resumes/index.html")
 
 
@@ -221,18 +235,44 @@ def verify(token):
         if user.email_verification_token == token:
             user.email_verified = True
             flash("Email has been verified!", "success")
-            db.session.add(user)
-            db.session.commit()
+            if user.approved:
+                db.session.add(user)
+                db.session.commit()
             login_user(user)
             return redirect(url_for("base.index"))
 
     flash("Invalid token.", "danger")
     return redirect(url_for("users.login"))
 
+@blueprint.route("/approve/<token>")
+def approve(token):
+    user = User.query.filter_by(approval_token=token).first()
+    if user:
+        if user.approved:
+            flash("User is already approved.", "info")
+            return redirect(url_for("base.index"))
+        if user.approval_token == token:
+            user.approved = True
+            flash("User has been approved!", "success")
+            if user.email_verified:
+                db.session.add(user)
+                db.session.commit()
+            login_user(user)
+            return redirect(url_for("base.index"))
 
-def register_user(name, email, username, password, admin=False, **kwargs):
+    flash("Invalid token.", "danger")
+    return redirect(url_for("users.login"))
+
+def register_user(name, email, username, password, user_type, admin=False, **kwargs):
+    is_approved = user_type == "student"
     code = random_string()
-    new_user = user_datastore.create_user(name=name, username=username, password=password, email=email, email_verification_token=code)
+    approval_code = random_string()
+    new_user = user_datastore.create_user(
+        name=name, username=email, password=password, email=email, user_type=user_type,
+        email_verification_token=code, approved=is_approved, approval_token=approval_code)
+    if not is_approved:
+        send_approval_request_email(email, user_type, url_for(
+            "users.approve", token=approval_code, _external=True))
     if not current_app.config.get("EMAIL_VERIFICATION_DISABLED", False):
         send_verification_email(username, email, url_for("users.verify", token=code, _external=True))
     db.session.commit()
@@ -246,6 +286,11 @@ def send_verification_email(username, email, link):
     )
     send_email(email, subject, body)
 
+def send_approval_request_email(user_email, user_type, link):
+    subject = "[SASE Website] Approve registration of " + user_type
+    body = string.Template(approval_request_email_template).substitute(
+        user_email=email, user_type=user_type, link=link)
+    send_email("sasemail@umn.edu", subject, body)
 
 class ProfileEditForm(FlaskForm):
     name = StringField("Name", validators=[InputRequired("Please enter a name.")])
@@ -292,6 +337,11 @@ class RegisterForm(FlaskForm):
     email = StringField("Email", validators=[InputRequired("Please enter an email."), Email("Please enter a valid email.")])
     password = PasswordField("Password", validators=[InputRequired("Please enter a password.")])
     confirm_password = PasswordField("Confirm Password", validators=[InputRequired("Please confirm your password."), EqualTo("password", "Please enter the same password.")])
+    user_type = SelectField("Are you:",
+                            validators=[InputRequired("Please select a role.")],
+                            choices=[("student", "Student"),
+                                     ("employer", "Employer"),
+                                     ("board", "SASE UMN board")])
     submit = SubmitField("Register")
 
     def validate_username(self, field):
