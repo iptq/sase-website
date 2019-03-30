@@ -338,8 +338,7 @@ class RegisterForm(FlaskForm):
     password = PasswordField("Password", validators=[InputRequired("Please enter a password.")])
     confirm_password = PasswordField("Confirm Password", validators=[InputRequired("Please confirm your password."), EqualTo("password", "Please enter the same password.")])
     user_type = SelectField("Are you:",
-                            validators=[InputRequired("Please select a
-                                                      role.")],
+                            validators=[InputRequired("Please select a role.")],
                             choices=[("student", "Student"),
                                      ("employer", "Employer"),
                                      ("board", "SASE UMN board")])
