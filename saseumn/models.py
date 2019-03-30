@@ -94,8 +94,11 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(256), unique=True, index=True)
     email_verified = db.Column(db.Boolean)
     email_verification_token = db.Column(db.String(256), index=True)
+    approved = db.Column(db.Boolean)
+    approval_token = db.Column(db.String(256), index=True)
     _register_time = db.Column("register_time", db.DateTime, default=datetime.now)
     _password = db.Column("password", db.String(256))
+    user_type = db.Column(db.String(256))
 
     roles = db.relationship("Role", secondary=roles_users, backref=db.backref("users", lazy="dynamic"))
     resumes = db.relationship("Resume", backref="user", lazy=True)
